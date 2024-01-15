@@ -47,4 +47,96 @@ add_score_to_board(score);
 
 불변식을 조기에 확인하는 게 좋을 듯. 단정문까지는 모르겠고 객체 생성시에 불변식을 확인하는 작업을 하는 게 더 효율적인 것 같음.
 
+---
+#### Topic26. 리소스 사용의 균형
 
+모든 것은 트레이드 오프를 고려해야 한다.
+
+우리는 코딩할 때 언제나 리소스를 관리한다.  
+리소스를 관리하는 하나의 원칙은 **'자신이 시작한 것은 자신이 끝내라'**이다.
+
+나쁜 코드 예시)
+```
+def read_customer
+  @customer_file = File.open(@name + ".rec", "r+")
+  @balance       = BigDecimal(@customer_file.gets)
+end
+
+def write_customer
+  @customer_file.rewind
+  @customer_file.puts @balance.to_s
+  @customer_file.close
+end
+
+def update_customer(transaction_amount)
+  read_customer
+  @balance += transaction_amount
+  write_customer
+end
+```
+
+왜 나쁜가? 명세가 바뀌었다는 이야기를 들은 불운한 유지 보수 프로그래머를 생각해 보자.  
+잔액은 새로운 값이 음수가 아닌 경우에만 갱신되어야 한다는 조건이 추가되었다. 소스 코드를 찾아서 update_customer를 수정한다.
+
+```
+def update_customer(transaction_amount)
+  read_customer
+  new_balance = @balance + transaction_amount
+  if (new_balance >= 0.00)
+    @balance = new_balance
+    write_customer
+  end
+end
+```
+
+이렇게 할 경우 배포 몇 시간 후 파일이 너무 많이 열려 있다는 오류와 함께 죽어 버린다.  
+알고 보니 write_customer가 몇몇 상황에서는 호출되지 않았고, 그런 경우 파일이 닫히지 않았다.  
+
+```
+def update_customer(transaction_amount)
+  read_customer
+  new_balance = @balance + transaction_amount
+  if (new_balance >= 0.00)
+    @balance = new_balance
+    write_customer
+  else
+    @customer_file.close # 나쁜 방법!
+  end
+end
+```
+
+올바르게 바꿔보자.
+
+```
+def read_customer(file)
+  @balance = BigDecimal(file.gets)
+end
+
+def write_customer(file)
+  file.rewind
+  file.puts @balance.to_s
+end
+
+def update_customer(transaction_amount)
+  file = File.open(@name + ".rec" + "r+"
+  read_customer(file)
+  @balance += transaction_amount
+  write_customer(file)
+  file.close
+end
+```
+
+파일 객체를 인스턴스 변수에 저장하지 않고 매개 변수로 전달받도록 코드를 바꾸었다.  
+이제 모든 책임은 update_customer로 옮겨졌다.  
+열기와 닫기가 한 곳에 있게 됐다.
+
+**중첩 할당**
+리소스 할당의 기본 패턴을 확장해서 한 번에 여러 리소스를 사용하는 루틴에 적용할 수 있다.
+- 리소스를 할당한 순서의 역순으로 해제하라.
+- 코드의 여러 곳에서 동일한 구성의 리소스들을 할당하는 경우에는 언제나 같은 순서로 할당해야 교착 가능성을 줄일 수 있다.
+    프로세스A가 resource1을 이미 확보하고서 resource2를 획득하려고 하고 있는데 프로세스 B는 resource2를 확보한 상태로 resource1을 막 요청하려고 한다면, 두 프로세스 모두 영원히 기다리게 될 것이다.
+
+예외가 발생할 경우엔 finally절에서 메모리 해제를 해준다.
+
+
+  
