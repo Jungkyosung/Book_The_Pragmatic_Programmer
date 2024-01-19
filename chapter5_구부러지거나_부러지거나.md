@@ -509,4 +509,17 @@ class OrderRecord   extends BasicRecord with CommonFinders
 - 다른 시스템 컴포넌트가 계정에 추가한 정보 검증
 - 데이터베이스에 저장하기 전에 데이터 일관성 검증
 
-흔히 쓰이는 접근 방식은 
+흔히 쓰이는 접근 방식은 하나의 클래스에 (비즈니스 객체 혹은 영속성 객체의 클래스에) 모든 검증을 다 가져다 붙인 후, 상황별로 플래그를 추가해서 적용할 검증 사항을 관리하는 것. 별로 이상적이지 않다.  
+
+믹스인(합성)을 사용하여 각 상황에 맞는 전문화된 클래스를 만드는 것이 더 낫다고 생각한다.
+
+```
+class AccountForCustomer extends Account
+  with AccountValidations, AccountCustomerValidations
+
+class AccountForAdmin extends Account
+  with AccountValidations, AccountAdminValidations
+```
+
+여기서는 두 파생 클래스 모두 계정 객체에 공통으로 적용해야 할 검증을 포함하고 있다.  
+
